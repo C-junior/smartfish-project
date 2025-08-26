@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitor de pH - Tanque de Água</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background: linear-gradient(135deg, #1a2980, #26d0ce);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #00c9ff, #0072ff);
+            color: white;
+            padding: 30px;
+            text-align: center;
+            position: relative;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+            font-weight: 300;
+        }
+
+        .main-content {
+            padding: 40px;
+        }
+
+        .tank-info {
+            background: #f0f8ff;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 30px;
+            border-left: 5px solid #0072ff;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+        }
+
+        .tank-info h2 {
+            color: #0072ff;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            font-weight: 500;
+        }
+
+        .tank-info h2 i {
+            margin-right: 12px;
+            font-size: 1.5em;
+        }
+
+        .input-group {
+            margin-bottom: 25px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #444;
+            font-size: 1.05em;
+        }
+
+        .input-group input, .input-group select {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e1e5e9;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            background: #f8f9fa;
+        }
+
+        .input-group input:focus, .input-group select:focus {
+            outline: none;
+            border-color: #0072ff;
+            box-shadow: 0 0 0 3px rgba(0, 114, 255, 0.1);
+            background: white;
+        }
+
+        .sensor-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+
+        .sensor-card {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+            border: 1px solid #eee;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .sensor-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .sensor-card h3 {
+            color: #0072ff;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 500;
+        }
+
+        .sensor-card h3 i {
+            margin-right: 8px;
+        }
+
+        .sensor-card input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            font-size: 16px;
+            text-align: center;
+            background: #f8f9fa;
+        }
+
+        .sensor-card input:focus {
+            outline: none;
+            border-color: #0072ff;
+            box-shadow: 0 0 0 3px rgba(0, 114, 255, 0.1);
+            background: white;
+        }
+
+        .ph-display {
+            text-align: center;
+            margin: 30px 0;
+            padding: 25px;
+            border-radius: 15px;
+            font-size: 2em;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+            border: 1px solid #eee;
+        }
+
+        .ph-display.neutro {
+            background: linear-gradient(135deg, #4CAF50, #2E7D32);
+            color: white;
+        }
+
+        .ph-display.acido {
+            background: linear-gradient(135deg, #f44336, #c62828);
+            color: white;
+        }
+
+        .ph-display.alcalino {
+            background: linear-gradient(135deg, #FF9800, #EF6C00);
+            color: white;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #0072ff, #00c9ff);
+            color: white;
+            border: none;
+            padding: 16px 30px;
+            border-radius: 10px;
+            font-size: 17px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+            box-shadow: 0 5px 15px rgba(0, 114, 255, 0.3);
+            letter-spacing: 0.5px;
+        }
+
+        .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0, 114, 255, 0.4);
+        }
+
+        .btn:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            font-weight: 500;
+            display: none;
+        }
+
+        .status.show {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .tank-id-display {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 15px;
+            font-size: 0.95em;
+            color: #0066cc;
+            display: flex;
+            align-items: center;
+        }
+
+        .tank-id-display i {
+            margin-right: 10px;
+            font-size: 1.2em;
+        }
+
+        .generated-id {
+            font-family: monospace;
+            background: #fff;
+            padding: 5px 10px;
+            border-radius: 5px;
+            margin-left: 10px;
+            font-weight: bold;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                margin: 10px;
+                border-radius: 15px;
+            }
+
+            .header {
+                padding: 20px;
+            }
+
+            .header h1 {
+                font-size: 2em;
+            }
+
+            .main-content {
+                padding: 20px;
+            }
+
+            .sensor-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Monitor de Tanque</h1>
+            <p>Sistema de Monitoramento de Qualidade da Água</p>
+        </div>
+
+        <div class="main-content">
+            <div class="tank-info">
+                <h2><i class="material-icons">local_aquarium</i> Informações do Tanque</h2>
+                <div class="input-group">
+                    <label for="tankName">Nome do Tanque:</label>
+                    <input type="text" id="tankName" placeholder="Ex: Tanque Principal">
+                </div>
+                <div class="input-group">
+                    <label for="location">Localização:</label>
+                    <select id="location">
+                        <option value="Laboratório">Laboratório</option>
+                        <option value="Galpão A">Galpão A</option>
+                        <option value="Galpão B">Galpão B</option>
+                        <option value="Área Externa">Área Externa</option>
+                        <option value="Sala de Pesquisa">Sala de Pesquisa</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label for="stage">Estágio:</label>
+                    <select id="stage">
+                        <option value="Monitoramento">Monitoramento</option>
+                        <option value="Crescimento">Crescimento</option>
+                        <option value="Reprodução">Reprodução</option>
+                        <option value="Quarentena">Quarentena</option>
+                        <option value="Manutenção">Manutenção</option>
+                    </select>
+                </div>
+                <div class="tank-id-display">
+                    <i class="material-icons">info</i>
+                    <span>ID do Tanque: <span class="generated-id" id="tankIdDisplay">Digite um nome primeiro</span></span>
+                </div>
+            </div>
+
+            <div class="sensor-grid">
+                <div class="sensor-card">
+                    <h3><i class="material-icons">opacity</i> pH</h3>
+                    <input type="number" id="phValue" min="0" max="14" step="0.1" placeholder="7.0">
+                </div>
+                <div class="sensor-card">
+                    <h3><i class="material-icons">device_thermostat</i> Temperatura (°C)</h3>
+                    <input type="number" id="temperatureValue" step="0.1" placeholder="25.5">
+                </div>
+                <div class="sensor-card">
+                    <h3><i class="material-icons">air</i> Oxigênio (mg/L)</h3>
+                    <input type="number" id="oxygenValue" step="0.1" placeholder="8.2">
+                </div>
+                <div class="sensor-card">
+                    <h3><i class="material-icons">waves</i> Salinidade (‰)</h3>
+                    <input type="number" id="salinityValue" step="0.1" placeholder="35.0">
+                </div>
+            </div>
+
+            <div class="ph-display" id="phDisplay">
+                Digite um valor de pH
+            </div>
+
+            <button class="btn" onclick="saveReading()" id="saveBtn">
+                Salvar Leitura
+            </button>
+
+            <div id="status"></div>
+        </div>
+    </div>
+
+    <!-- Firebase Scripts -->
+    <script type="module">
+        // Import Firebase modules
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+        import { getFirestore, collection, doc, setDoc, addDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+        // Firebase configuration - matches Vue app exactly
+        const firebaseConfig = {
+            apiKey: "AIzaSyBge9DUGttm4OMVWKLSzHMKmQzc1oYxchs",
+            authDomain: "smartfish-c4ac7.firebaseapp.com",
+            projectId: "smartfish-c4ac7",
+            storageBucket: "smartfish-c4ac7.firebasestorage.app",
+            messagingSenderId: "260869781807",
+            appId: "1:260869781807:web:ef105a272181166b7349da",
+            measurementId: "G-R0CHPDN105"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // Make functions available globally
+        window.db = db;
+        
+        // Generate consistent tank ID that matches Vue app expectations
+        function generateTankId(name) {
+            if (!name) return 'central-tank'; // Default fallback
+            
+            return name
+                .toLowerCase()
+                .trim()
+                .replace(/[^a-z0-9\s-]/g, '')  // Remove special characters
+                .replace(/\s+/g, '-')           // Replace spaces with hyphens
+                .replace(/-+/g, '-')            // Replace multiple hyphens with single
+                .substring(0, 30) || 'central-tank';  // Limit length with fallback
+        }
+
+        // Determine status based on sensor readings
+        function calculateTankStatus(ph, temperature, oxygen, salinity) {
+            // Critical thresholds
+            if (ph < 6.0 || ph > 8.5 || temperature < 15 || temperature > 30 || oxygen < 5) {
+                return 'critical';
+            }
+            
+            // Warning thresholds
+            if (ph < 6.5 || ph > 8.0 || temperature < 18 || temperature > 28 || oxygen < 6.5) {
+                return 'warning';
+            }
+            
+            return 'healthy';
+        }
+
+        // Update tank ID display when name changes
+        document.getElementById('tankName').addEventListener('input', function() {
+            const tankName = this.value;
+            const tankId = generateTankId(tankName);
+            document.getElementById('tankIdDisplay').textContent = tankId || 'Digite um nome primeiro';
+        });
+
+        // Update pH display color based on value
+        document.getElementById('phValue').addEventListener('input', function() {
+            const phValue = parseFloat(this.value);
+            const phDisplay = document.getElementById('phDisplay');
+            
+            if (isNaN(phValue)) {
+                phDisplay.textContent = 'Digite um valor de pH';
+                phDisplay.className = 'ph-display';
+                return;
+            }
+            
+            phDisplay.textContent = `pH: ${phValue.toFixed(1)}`;
+            
+            if (phValue < 6.5) {
+                phDisplay.className = 'ph-display acido';
+            } else if (phValue > 7.5) {
+                phDisplay.className = 'ph-display alcalino';
+            } else {
+                phDisplay.className = 'ph-display neutro';
+            }
+        });
+
+        // Main save function - updated to match Vue app data structure exactly
+        window.saveReading = async function() {
+            const tankName = document.getElementById('tankName').value.trim();
+            const location = document.getElementById('location').value;
+            const stage = document.getElementById('stage').value;
+            const phValue = parseFloat(document.getElementById('phValue').value);
+            const temperatureValue = parseFloat(document.getElementById('temperatureValue').value);
+            const oxygenValue = parseFloat(document.getElementById('oxygenValue').value);
+            const salinityValue = parseFloat(document.getElementById('salinityValue').value);
+
+            const tankId = generateTankId(tankName);
+            
+            // Validation
+            if (!tankName || !tankId) {
+                showStatus('Nome do Tanque é obrigatório.', 'error');
+                return;
+            }
+
+            if (isNaN(phValue) || isNaN(temperatureValue) || isNaN(oxygenValue) || isNaN(salinityValue)) {
+                showStatus('Todos os valores de sensores são obrigatórios.', 'error');
+                return;
+            }
+
+            const saveBtn = document.getElementById('saveBtn');
+            saveBtn.disabled = true;
+            saveBtn.textContent = 'Salvando...';
+
+            try {
+                const tankRef = doc(db, 'tanks', tankId);
+                const historyRef = collection(tankRef, 'history');
+
+                const currentDate = new Date();
+                const timestamp = serverTimestamp();
+                
+                // Calculate status based on sensor readings
+                const status = calculateTankStatus(phValue, temperatureValue, oxygenValue, salinityValue);
+
+                // 1. Add to history subcollection (matches Vue app expectations)
+                await addDoc(historyRef, {
+                    temperature: temperatureValue,
+                    ph: phValue,
+                    oxygen: oxygenValue,
+                    salinity: salinityValue,
+                    timestamp: timestamp
+                });
+
+                // 2. Update main tank document - EXACT format expected by Vue tankStore
+                await setDoc(tankRef, {
+                    name: tankName,
+                    location: location,
+                    status: status,
+                    stage: stage,
+                    lastUpdate: currentDate.toISOString(),
+                    sensors: {
+                        temperature: temperatureValue,  // Order matches Vue app
+                        ph: phValue,
+                        oxygen: oxygenValue,
+                        salinity: salinityValue
+                    }
+                }, { merge: true });
+
+                showStatus('Leitura salva com sucesso! Dados sincronizados com o dashboard.', 'success');
+                
+                // Clear sensor values but keep tank configuration
+                document.getElementById('phValue').value = '';
+                document.getElementById('temperatureValue').value = '';
+                document.getElementById('oxygenValue').value = '';
+                document.getElementById('salinityValue').value = '';
+                
+                // Reset pH display
+                document.getElementById('phDisplay').textContent = 'Digite um valor de pH';
+                document.getElementById('phDisplay').className = 'ph-display';
+
+            } catch (error) {
+                console.error('Erro ao salvar leitura:', error);
+                showStatus(`Erro ao salvar: ${error.message}`, 'error');
+            } finally {
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'Salvar Leitura';
+            }
+        }
+
+        function showStatus(message, type) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type} show`;
+            
+            // Auto-hide after 5 seconds
+            setTimeout(() => {
+                statusDiv.classList.remove('show');
+            }, 5000);
+        }
+
+        // Initialize tank ID display
+        document.addEventListener('DOMContentLoaded', function() {
+            const tankName = document.getElementById('tankName').value;
+            if (tankName) {
+                document.getElementById('tankIdDisplay').textContent = generateTankId(tankName);
+            }
+        });
+    </script>
+</body>
+</html>
