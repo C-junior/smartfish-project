@@ -96,8 +96,34 @@
         </div>
       </div>
 
+      <!-- Tank Discovery Status -->
+      <div v-if="isDiscovering && !isInitialLoading" class="text-center py-8 mb-8">
+        <div class="animate-spin w-8 h-8 border-4 border-primary-teal border-t-transparent rounded-full mx-auto"></div>
+        <p class="text-gray-600 mt-4">Descobrindo tanques disponíveis...</p>
+      </div>
+
+      <!-- No Tanks Found State -->
+      <div v-else-if="!isDiscovering && !isInitialLoading && tankSummaries.length === 0" class="text-center py-12">
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-8 max-w-md mx-auto">
+          <InformationCircleIcon class="w-12 h-12 text-blue-600 mx-auto mb-4" />
+          <h3 class="text-lg font-semibold text-blue-800 mb-2">
+            Nenhum Tanque Encontrado
+          </h3>
+          <p class="text-blue-600 mb-4">
+            Use a interface de coleta de dados para adicionar leituras de sensores, ou verifique se os dados estão sendo salvos corretamente no Firestore.
+          </p>
+          <button
+            @click="retryDiscovery"
+            class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors focus-ring"
+          >
+            Tentar Novamente
+          </button>
+        </div>
+      </div>
+
       <!-- Tank Grid Component -->
       <TankGrid
+        v-else-if="!isDiscovering && tankSummaries.length > 0"
         :tanks="tankSummaries"
         :loading="isLoading"
         :use-pagination="true"
@@ -234,6 +260,7 @@ const showAddTankModal = ref(false)
 const isInitialLoading = ref(true)
 const isCreatingTank = ref(false)
 const showSystemAlert = ref(true)
+const isDiscovering = ref(true)
 
 // New tank form
 const newTank = ref({
@@ -340,7 +367,16 @@ const systemAlertMessage = computed(() => {
 
 // Methods
 const refreshAllTanks = async () => {
-  await tankStore.fetchAllTanks()
+  isDiscovering.value = true
+  try {
+    await tankStore.discoverTanks()
+  } finally {
+    isDiscovering.value = false
+  }
+}
+
+const retryDiscovery = async () => {
+  await refreshAllTanks()
 }
 
 const navigateToTank = (tankId) => {
@@ -412,24 +448,43 @@ const dismissSystemAlert = () => {
 // Lifecycle hooks
 onMounted(async () => {
   try {
+    isInitialLoading.value = true
+    isDiscovering.value = true
+    
+    console.log('HomeView: Starting tank discovery...')
+    
     // Switch to overview mode
     tankStore.switchToOverview()
     
-    // Initialize and fetch all tanks
-    await tankStore.fetchAllTanks()
+    // Discover available tanks from Firestore
+    const discoveredTanks = await tankStore.discoverTanks()
+    console.log('HomeView: Discovered tanks:', discoveredTanks)
     
-    // Simulate initial loading time
-    setTimeout(() => {
-      isInitialLoading.value = false
-    }, 1500)
+    // Setup real-time collection monitoring
+    tankStore.setupTankCollectionListener()
+    
+    // Check for auto-navigation preference
+    const shouldAutoNavigate = localStorage.getItem('autoNavigateToTank') === 'true'
+    if (shouldAutoNavigate && discoveredTanks.length > 0) {
+      const defaultTank = tankStore.getDefaultTankForDashboard()
+      if (defaultTank) {
+        console.log('HomeView: Auto-navigating to tank:', defaultTank)
+        router.push(`/tank/${defaultTank}`)
+        return
+      }
+    }
+    
   } catch (error) {
     console.error('Error initializing home view:', error)
+  } finally {
     isInitialLoading.value = false
+    isDiscovering.value = false
   }
 })
 
 onUnmounted(() => {
-  // Clean up any listeners if needed
+  // Clean up tank collection listener
+  tankStore.cleanupAllListeners()
 })
 </script>
 

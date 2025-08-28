@@ -337,7 +337,7 @@ const tankStore = useTankStore();
 const autoRefresh = ref(true);
 const isInitialLoading = ref(true);
 const systemStartTime = ref(new Date());
-const selectedTankId = ref(route.params.tankId || 'central-tank');
+const selectedTankId = ref('');
 
 // Computed properties from store
 const tankData = computed(() => tankStore.tankData);
@@ -351,7 +351,7 @@ const selectedTank = computed(() => tankStore.selectedTank);
 const overallTankStatus = computed(() => tankStore.overallTankStatus);
 
 // Tank-specific computed properties
-const currentTankId = computed(() => route.params.tankId || 'central-tank');
+const currentTankId = computed(() => route.params.tankId);
 
 const currentTankName = computed(() => {
   if (selectedTank.value) {
@@ -497,7 +497,7 @@ const switchTank = () => {
 
 const toggleAutoRefresh = () => {
   autoRefresh.value = !autoRefresh.value;
-  if (autoRefresh.value) {
+  if (autoRefresh.value && currentTankId.value) {
     tankStore.setupRealtimeListener(currentTankId.value);
   } else {
     tankStore.disconnect();
@@ -505,7 +505,9 @@ const toggleAutoRefresh = () => {
 };
 
 const manualRefresh = () => {
-  tankStore.setupRealtimeListener(currentTankId.value);
+  if (currentTankId.value) {
+    tankStore.setupRealtimeListener(currentTankId.value);
+  }
 };
 
 const exportData = () => {
@@ -544,50 +546,117 @@ const downloadReport = () => {
 // Lifecycle hooks
 onMounted(async () => {
   try {
-    // Initialize tanks data first
-    await tankStore.fetchAllTanks();
+    // Check if we have a tank ID from route
+    const tankId = route.params.tankId;
+    console.log('DashboardView: Initializing with tank ID:', tankId);
+
+    if (!tankId) {
+      console.warn('DashboardView: No tank ID provided, discovering tanks...');
+      
+      // Discover available tanks
+      const discoveredTanks = await tankStore.discoverTanks();
+      console.log('DashboardView: Discovered tanks:', discoveredTanks);
+      
+      // Get default tank for navigation
+      const defaultTank = tankStore.getDefaultTankForDashboard();
+      
+      if (defaultTank) {
+        console.log('DashboardView: Auto-navigating to default tank:', defaultTank);
+        router.replace(`/tank/${defaultTank}`);
+        return;
+      } else {
+        console.log('DashboardView: No tanks found, redirecting to home');
+        router.push('/');
+        return;
+      }
+    }
+
+    // Discover tanks to ensure tank collection is populated
+    await tankStore.discoverTanks();
+    
+    // Setup real-time collection monitoring
+    tankStore.setupTankCollectionListener();
+
+    // Check if the requested tank exists
+    if (!tankStore.tankCollection.has(tankId)) {
+      console.warn(`DashboardView: Tank ${tankId} not found, redirecting...`);
+      
+      // Get default tank for fallback
+      const defaultTank = tankStore.getDefaultTankForDashboard();
+      
+      if (defaultTank && defaultTank !== tankId) {
+        console.log('DashboardView: Redirecting to default tank:', defaultTank);
+        router.replace(`/tank/${defaultTank}`);
+        return;
+      } else {
+        console.log('DashboardView: No valid tanks found, redirecting to home');
+        router.push('/');
+        return;
+      }
+    }
 
     // Select the specific tank from route params
-    const tankId = route.params.tankId || 'central-tank';
+    console.log('DashboardView: Selecting tank:', tankId);
     tankStore.selectTank(tankId);
-
-    // Initialize the tank store and start listening for real-time updates
-    tankStore.setupRealtimeListener(tankId);
 
     // Simulate initial loading time
     setTimeout(() => {
       isInitialLoading.value = false;
-    }, 1500);
+    }, 800);
   } catch (error) {
     console.error('Error initializing dashboard:', error);
     isInitialLoading.value = false;
+    
+    // On error, try to redirect to home
+    router.push('/');
   }
 });
 
 // Watch for route changes to switch tanks
 watch(
   () => route.params.tankId,
-  (newTankId, oldTankId) => {
+  async (newTankId, oldTankId) => {
     if (newTankId && newTankId !== oldTankId) {
-      // Disconnect from previous tank
-      tankStore.disconnect();
-
-      // Select new tank
-      tankStore.selectTank(newTankId);
-
-      // Setup listener for new tank
-      tankStore.setupRealtimeListener(newTankId);
-
-      // Update local state
-      selectedTankId.value = newTankId;
+      console.log('DashboardView: Route changed to tank:', newTankId);
+      
+      // Ensure tank collection is populated
+      if (tankStore.tankCollection.size === 0) {
+        await tankStore.discoverTanks();
+      }
+      
+      // Check if tank exists before selecting
+      if (tankStore.tankCollection.has(newTankId)) {
+        // Disconnect from previous tank
+        tankStore.disconnect();
+        
+        // Select new tank
+        tankStore.selectTank(newTankId);
+        
+        // Update local state
+        selectedTankId.value = newTankId;
+      } else {
+        console.warn(`DashboardView: Tank ${newTankId} not found in collection`);
+        
+        // Redirect to default tank or home
+        const defaultTank = tankStore.getDefaultTankForDashboard();
+        if (defaultTank && defaultTank !== newTankId) {
+          router.replace(`/tank/${defaultTank}`);
+        } else {
+          router.push('/');
+        }
+      }
+    } else if (!newTankId) {
+      // No tank ID provided, redirect to home
+      console.log('DashboardView: No tank ID in route, redirecting to home');
+      router.push('/');
     }
   },
   { immediate: false }
 );
 
 onUnmounted(() => {
-  // Clean up listeners
-  tankStore.disconnect();
+  // Clean up all listeners
+  tankStore.cleanupAllListeners();
 });
 </script>
 

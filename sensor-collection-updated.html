@@ -358,17 +358,33 @@
                 Salvar Leitura
             </button>
 
+            <div style="margin-top: 20px; padding: 15px; background: #f0f8ff; border-radius: 10px; border-left: 4px solid #0072ff;">
+                <h4 style="margin: 0 0 10px 0; color: #0072ff; font-size: 1.1em;">
+                    <i class="material-icons" style="vertical-align: middle; margin-right: 8px;">sync</i>
+                    Status de Sincronização
+                </h4>
+                <p style="margin: 0; font-size: 0.95em; color: #444;">
+                    Os dados são salvos automaticamente no Firestore e devem aparecer imediatamente no dashboard Vue.js.
+                    <br><strong>Abra o console do navegador (F12)</strong> para ver logs detalhados de sincronização.
+                </p>
+                <div style="margin-top: 10px;">
+                    <button onclick="testSync()" style="background: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 5px; font-size: 0.9em; cursor: pointer;">
+                        Testar Sincronização
+                    </button>
+                </div>
+            </div>
+
             <div id="status"></div>
         </div>
     </div>
 
     <!-- Firebase Scripts -->
     <script type="module">
-        // Import Firebase modules
+        // Import Firebase modules - using latest version for compatibility
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
-        import { getFirestore, collection, doc, setDoc, addDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+        import { getFirestore, collection, doc, setDoc, addDoc, serverTimestamp, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
-        // Firebase configuration - matches Vue app exactly
+        // Firebase configuration - EXACT match with Vue app
         const firebaseConfig = {
             apiKey: "AIzaSyBge9DUGttm4OMVWKLSzHMKmQzc1oYxchs",
             authDomain: "smartfish-c4ac7.firebaseapp.com",
@@ -382,36 +398,25 @@
         // Initialize Firebase
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
+        
+        console.log('Firebase initialized successfully');
+        console.log('Firestore database:', db.app.options.projectId);
 
         // Make functions available globally
         window.db = db;
         
         // Generate consistent tank ID that matches Vue app expectations
         function generateTankId(name) {
-            if (!name) return 'central-tank'; // Default fallback
+            if (!name || !name.trim()) return 'central-tank'; // Default fallback
             
             return name
                 .toLowerCase()
                 .trim()
-                .replace(/[^a-z0-9\s-]/g, '')  // Remove special characters
+                .replace(/[^a-z0-9\s-]/g, '')  // Remove special characters except spaces and hyphens
                 .replace(/\s+/g, '-')           // Replace spaces with hyphens
                 .replace(/-+/g, '-')            // Replace multiple hyphens with single
+                .replace(/^-|-$/g, '')          // Remove leading/trailing hyphens
                 .substring(0, 30) || 'central-tank';  // Limit length with fallback
-        }
-
-        // Determine status based on sensor readings
-        function calculateTankStatus(ph, temperature, oxygen, salinity) {
-            // Critical thresholds
-            if (ph < 6.0 || ph > 8.5 || temperature < 15 || temperature > 30 || oxygen < 5) {
-                return 'critical';
-            }
-            
-            // Warning thresholds
-            if (ph < 6.5 || ph > 8.0 || temperature < 18 || temperature > 28 || oxygen < 6.5) {
-                return 'warning';
-            }
-            
-            return 'healthy';
         }
 
         // Update tank ID display when name changes
@@ -455,14 +460,32 @@
 
             const tankId = generateTankId(tankName);
             
-            // Validation
+            // Validation with more descriptive messages
             if (!tankName || !tankId) {
                 showStatus('Nome do Tanque é obrigatório.', 'error');
                 return;
             }
 
             if (isNaN(phValue) || isNaN(temperatureValue) || isNaN(oxygenValue) || isNaN(salinityValue)) {
-                showStatus('Todos os valores de sensores são obrigatórios.', 'error');
+                showStatus('Todos os valores de sensores são obrigatórios e devem ser números válidos.', 'error');
+                return;
+            }
+
+            // Additional validation for sensor ranges
+            if (phValue < 0 || phValue > 14) {
+                showStatus('pH deve estar entre 0 e 14.', 'error');
+                return;
+            }
+            if (temperatureValue < -10 || temperatureValue > 50) {
+                showStatus('Temperatura deve estar entre -10°C e 50°C.', 'error');
+                return;
+            }
+            if (oxygenValue < 0 || oxygenValue > 20) {
+                showStatus('Oxigênio deve estar entre 0 e 20 mg/L.', 'error');
+                return;
+            }
+            if (salinityValue < 0 || salinityValue > 50) {
+                showStatus('Salinidade deve estar entre 0 e 50‰.', 'error');
                 return;
             }
 
@@ -477,34 +500,50 @@
                 const currentDate = new Date();
                 const timestamp = serverTimestamp();
                 
-                // Calculate status based on sensor readings
-                const status = calculateTankStatus(phValue, temperatureValue, oxygenValue, salinityValue);
+                console.log('Saving data for tank ID:', tankId);
+                console.log('Tank data to save:', {
+                    name: tankName,
+                    location: location,
+                    stage: stage,
+                    sensors: {
+                        temperature: temperatureValue,
+                        ph: phValue,
+                        oxygen: oxygenValue,
+                        salinity: salinityValue
+                    }
+                });
 
-                // 1. Add to history subcollection (matches Vue app expectations)
-                await addDoc(historyRef, {
+                // 1. Add to history subcollection first
+                const historyDoc = await addDoc(historyRef, {
                     temperature: temperatureValue,
                     ph: phValue,
                     oxygen: oxygenValue,
                     salinity: salinityValue,
                     timestamp: timestamp
                 });
+                console.log('History document added:', historyDoc.id);
 
                 // 2. Update main tank document - EXACT format expected by Vue tankStore
+                // Using the direct structure format that tankStore expects
                 await setDoc(tankRef, {
                     name: tankName,
                     location: location,
-                    status: status,
                     stage: stage,
                     lastUpdate: currentDate.toISOString(),
                     sensors: {
-                        temperature: temperatureValue,  // Order matches Vue app
+                        temperature: temperatureValue,  // Exact field order matches Vue app
                         ph: phValue,
                         oxygen: oxygenValue,
                         salinity: salinityValue
                     }
+                    // Note: status is calculated by Vue app, not stored in Firestore
                 }, { merge: true });
-
+                
+                console.log('Tank document updated successfully');
                 showStatus('Leitura salva com sucesso! Dados sincronizados com o dashboard.', 'success');
+                
+                // Setup verification listener to monitor synchronization
+                setupVerificationListener(tankId);
                 
                 // Clear sensor values but keep tank configuration
                 document.getElementById('phValue').value = '';
@@ -536,12 +575,83 @@
             }, 5000);
         }
 
+        // Test synchronization function - for debugging
+        window.testSync = async function() {
+            const tankId = 'test-sync-tank';
+            const tankRef = doc(db, 'tanks', tankId);
+            
+            try {
+                console.log('Testing data synchronization...');
+                
+                // Test data in exact Vue format
+                const testData = {
+                    name: 'Tanque de Teste',
+                    location: 'Laboratório',
+                    stage: 'Monitoramento',
+                    lastUpdate: new Date().toISOString(),
+                    sensors: {
+                        temperature: 25.5,
+                        ph: 7.2,
+                        oxygen: 8.1,
+                        salinity: 30.5
+                    }
+                };
+                
+                await setDoc(tankRef, testData, { merge: true });
+                console.log('Test data written to Firestore:', testData);
+                showStatus('Teste de sincronização enviado. Verifique o dashboard.', 'success');
+                
+            } catch (error) {
+                console.error('Test sync error:', error);
+                showStatus(`Erro no teste: ${error.message}`, 'error');
+            }
+        }
+
+        // Setup real-time verification listener
+        window.setupVerificationListener = function(tankId) {
+            if (!tankId) {
+                console.log('No tank ID provided for verification listener');
+                return;
+            }
+            
+            console.log('Setting up verification listener for tank:', tankId);
+            const tankRef = doc(db, 'tanks', tankId);
+            
+            // Listen for changes to verify data synchronization
+            const unsubscribe = onSnapshot(tankRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    console.log('Real-time data received from Firestore:', data);
+                    
+                    // Verify data structure matches Vue expectations
+                    if (data.sensors && typeof data.sensors === 'object') {
+                        console.log('✓ Data structure matches Vue app expectations');
+                        console.log('Sensors data:', data.sensors);
+                    } else {
+                        console.warn('⚠ Data structure does NOT match Vue app expectations');
+                        console.warn('Expected: { sensors: { temperature, ph, oxygen, salinity } }');
+                        console.warn('Received:', data);
+                    }
+                } else {
+                    console.log('Document does not exist');
+                }
+            }, (error) => {
+                console.error('Verification listener error:', error);
+            });
+            
+            // Store unsubscribe function for cleanup
+            window.verificationUnsubscribe = unsubscribe;
+        }
+
         // Initialize tank ID display
         document.addEventListener('DOMContentLoaded', function() {
             const tankName = document.getElementById('tankName').value;
             if (tankName) {
                 document.getElementById('tankIdDisplay').textContent = generateTankId(tankName);
             }
+            
+            // Add test sync button for debugging (can be removed in production)
+            console.log('HTML Sensor Interface loaded. Use testSync() function to test data synchronization.');
         });
     </script>
 </body>

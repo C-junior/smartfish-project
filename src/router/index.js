@@ -26,10 +26,9 @@ const routes = [
   },
   {
     path: '/dashboard',
-    redirect: (to) => {
-      // Redirect old dashboard route to tank-specific route
-      // Default to central-tank for backward compatibility
-      return '/tank/central-tank'
+    redirect: () => {
+      // Redirect old dashboard route to home for tank selection
+      return '/'
     }
   },
   {

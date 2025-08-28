@@ -9,6 +9,7 @@ import {
   limit,
   updateDoc,
   serverTimestamp,
+  getDocs,
 } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 
@@ -30,7 +31,7 @@ export const useTankStore = defineStore('tank', () => {
 
   // Multi-tank state
   const tankCollection = ref(new Map());
-  const selectedTankId = ref('central-tank');
+  const selectedTankId = ref(null); // Remove hardcoded default
   const isOverviewMode = ref(true);
 
   // Legacy state (maintained for backward compatibility)
@@ -179,33 +180,54 @@ export const useTankStore = defineStore('tank', () => {
     }
   };
 
+  // Data structure normalization helper
+  const normalizeTankData = (firestoreData, tankId) => {
+    // Enforce the exact sensor data format as saved by sensors
+    const normalizedData = {
+      id: tankId,
+      lastUpdate: firestoreData.lastUpdate || new Date().toISOString(),
+      location: firestoreData.location || 'Desconhecida',
+      name: firestoreData.name || `Tanque ${tankId}`,
+      sensors: {
+        oxygen: Number(firestoreData.sensors?.oxygen) || 0,
+        ph: Number(firestoreData.sensors?.ph) || 0,
+        salinity: Number(firestoreData.sensors?.salinity) || 0,
+        temperature: Number(firestoreData.sensors?.temperature) || 0
+      },
+      stage: firestoreData.stage || 'Monitoramento'
+    };
+
+    // Don't include status from Firestore - let computed property calculate it
+    return normalizedData;
+  };
+
   // Multi-tank Actions
   const initializeMultiTankData = () => {
-    if (!tankCollection.value.has('central-tank')) {
-      tankCollection.value.set('central-tank', {
-        id: 'central-tank',
-        name: 'Tanque Central',
-        location: 'Local Principal',
-        stage: 'Crescimento',
-        sensors: { temperature: 24, ph: 7.2, oxygen: 8.5, salinity: 30 },
-        lastUpdate: new Date().toISOString(),
-      });
-    }
+    // Remove hardcoded tank initialization
+    // Tanks will be loaded from Firestore dynamically
   };
 
   const selectTank = tankId => {
-    if (tankCollection.value.has(tankId)) {
-      selectedTankId.value = tankId;
-      isOverviewMode.value = false;
-
-      const selected = tankCollection.value.get(tankId);
-      tankData.value = { ...selected };
-
-      alerts.value = allAlerts.value.get(tankId) || [];
-      historicalData.value = allHistoricalData.value.get(tankId) || [];
-
-      setupRealtimeListener();
+    if (!tankId) {
+      console.error('Tank ID is required');
+      return;
     }
+
+    selectedTankId.value = tankId;
+    isOverviewMode.value = false;
+
+    // Get existing tank data if available
+    const existing = tankCollection.value.get(tankId);
+    if (existing) {
+      tankData.value = { ...existing };
+    }
+
+    // Load alerts and historical data for this tank
+    alerts.value = allAlerts.value.get(tankId) || [];
+    historicalData.value = allHistoricalData.value.get(tankId) || [];
+
+    // Setup listener with the specific tank ID
+    setupRealtimeListener(tankId);
   };
 
   const switchToOverview = () => {
@@ -218,12 +240,14 @@ export const useTankStore = defineStore('tank', () => {
       isLoading.value = true;
       connectionStatus.value = 'connecting';
 
-      initializeMultiTankData();
+      // Initialize without hardcoded data
+      // Tanks will be discovered and loaded dynamically
+      // when selectTank() is called or through other means
 
       connectionStatus.value = 'connected';
       error.value = null;
     } catch (err) {
-      console.error('Error fetching tanks:', err);
+      console.error('Error initializing tank system:', err);
       connectionStatus.value = 'error';
       error.value = err.message;
     } finally {
@@ -232,90 +256,39 @@ export const useTankStore = defineStore('tank', () => {
   };
 
   // Actions
-  const setupRealtimeListener = (specificTankId = null) => {
+  const setupRealtimeListener = (tankId) => {
+    if (!tankId) {
+      console.error('Tank ID is required for setting up listener');
+      return;
+    }
+
     try {
       isLoading.value = true;
       connectionStatus.value = 'connecting';
 
-      const tankId = specificTankId || selectedTankId.value || 'central-tank';
+      // Standardized path: /tanks/{tank-id}
       const tankRef = doc(db, 'tanks', tankId);
+      console.log(`Setting up listener for tank: ${tankId}`);
 
       unsubscribe = onSnapshot(
         tankRef,
         docSnap => {
           if (docSnap.exists()) {
             const data = docSnap.data();
-            console.log('Received Firestore data:', data); // Debug log
+            console.log('Received Firestore data:', data);
 
-            // Handle the data structure based on how it's stored in Firestore
-            let parsedData = {};
+            // Normalize data to match sensor format exactly
+            const normalizedData = normalizeTankData(data, tankId);
+            console.log('Normalized tank data:', normalizedData);
 
-            // Check if data has the expected structure
-            if (data.sensors && typeof data.sensors === 'object') {
-              // Direct structure: { sensors: { temperature: 26, ph: 7.2, ... }, name: "...", ... }
-              parsedData = {
-                name: data.name || 'Tanque central',
-                location: data.location || 'Galpão A',
-                stage: data.stage || 'Crescimento',
-                lastUpdate: data.lastUpdate || new Date().toISOString(),
-                sensors: {
-                  temperature: data.sensors.temperature || 0,
-                  ph: data.sensors.ph || 0,
-                  oxygen: data.sensors.oxygen || 0,
-                  salinity: data.sensors.salinity || 0,
-                },
-              };
-            } else if (data.tankData && data.tankData.sensors) {
-              // Nested structure: { tankData: { sensors: { ... }, ... } }
-              parsedData = {
-                name: data.tankData.name || 'Tanque central',
-                location: data.tankData.location || 'Galpão A',
-                stage: data.tankData.stage || 'Crescimento',
-                lastUpdate:
-                  data.tankData.lastUpdate || new Date().toISOString(),
-                sensors: {
-                  temperature: data.tankData.sensors.temperature || 0,
-                  ph: data.tankData.sensors.ph || 0,
-                  oxygen: data.tankData.sensors.oxygen || 0,
-                  salinity: data.tankData.sensors.salinity || 0,
-                },
-              };
-            } else {
-              // Fallback: try to extract what we can
-              parsedData = {
-                name: data.name || 'Tanque central',
-                location: data.location || 'Galpão A',
-                stage: data.stage || 'Crescimento',
-                lastUpdate: data.lastUpdate || new Date().toISOString(),
-                sensors: {
-                  temperature: 0,
-                  ph: 0,
-                  oxygen: 0,
-                  salinity: 0,
-                },
-              };
-            }
-
-            const newTankData = {
-              id: tankId,
-              ...tankData.value,
-              ...parsedData,
-            };
-
-            // Don't use the status from Firestore, let our computed property handle it
-            delete newTankData.status;
-            tankData.value = newTankData;
-
-            console.log('Parsed tank data:', newTankData); // Debug log
+            // Update tank data
+            tankData.value = normalizedData;
 
             // Update tank collection
-            tankCollection.value.set(tankId, newTankData);
+            tankCollection.value.set(tankId, normalizedData);
 
-            // Handle historical data
-            if (data.historicalData && Array.isArray(data.historicalData)) {
-              historicalData.value = data.historicalData;
-              allHistoricalData.value.set(tankId, data.historicalData);
-            }
+            // Note: Historical data should be in /tanks/{tank-id}/historicalData subcollection
+            // We don't load it here to keep real-time data separate from historical data
 
             // Check for alerts based on current sensor values
             checkAndGenerateAlerts();
@@ -323,7 +296,8 @@ export const useTankStore = defineStore('tank', () => {
             connectionStatus.value = 'connected';
             error.value = null;
           } else {
-            createInitialTankData();
+            console.log(`Tank document ${tankId} does not exist`);
+            createInitialTankData(tankId);
           }
           isLoading.value = false;
         },
@@ -342,21 +316,28 @@ export const useTankStore = defineStore('tank', () => {
     }
   };
 
-  const createInitialTankData = () => {
-    // This would be handled by your Firebase setup
+  const createInitialTankData = (tankId) => {
     console.log(
-      'Tank document does not exist. Please ensure the document is created in Firestore.'
+      `Tank document ${tankId} does not exist. Please ensure the document is created in Firestore with the correct structure.`
     );
+    
+    connectionStatus.value = 'error';
+    error.value = `Tanque ${tankId} não encontrado no banco de dados`;
   };
 
-  const checkAndGenerateAlerts = (specificTankId = null) => {
-    const tankId = specificTankId || selectedTankId.value || 'central-tank';
-    const tank = tankCollection.value.get(tankId) || tankData.value;
+  const checkAndGenerateAlerts = (tankId = null) => {
+    const currentTankId = tankId || selectedTankId.value;
+    if (!currentTankId) {
+      console.warn('No tank ID available for alert checking');
+      return;
+    }
+
+    const tank = tankCollection.value.get(currentTankId) || tankData.value;
     const sensors = tank.sensors;
 
     const newAlerts = [];
     const currentTime = new Date().toISOString();
-    const currentAlerts = allAlerts.value.get(tankId) || alerts.value;
+    const currentAlerts = allAlerts.value.get(currentTankId) || alerts.value;
 
     Object.keys(sensors).forEach(sensorType => {
       const value = sensors[sensorType];
@@ -379,7 +360,7 @@ export const useTankStore = defineStore('tank', () => {
             threshold: getThresholdForAlert(sensorType, value, status),
             message: generateAlertMessage(sensorType, value, status),
             acknowledged: false,
-            tankId: tankId,
+            tankId: currentTankId,
           };
           newAlerts.push(alert);
         }
@@ -388,10 +369,10 @@ export const useTankStore = defineStore('tank', () => {
 
     if (newAlerts.length > 0) {
       const updatedAlerts = [...newAlerts, ...currentAlerts];
-      allAlerts.value.set(tankId, updatedAlerts);
+      allAlerts.value.set(currentTankId, updatedAlerts);
 
       // Update legacy alerts if this is the selected tank
-      if (selectedTankId.value === tankId || !selectedTankId.value) {
+      if (selectedTankId.value === currentTankId) {
         alerts.value = updatedAlerts;
       }
     }
@@ -469,6 +450,130 @@ export const useTankStore = defineStore('tank', () => {
     connectionStatus.value = 'disconnected';
   };
 
+  // Tank Discovery Methods
+  const discoverTanks = async () => {
+    try {
+      isLoading.value = true;
+      connectionStatus.value = 'connecting';
+      console.log('Discovering available tanks in Firestore...');
+
+      const tanksQuery = query(collection(db, 'tanks'));
+      const snapshot = await getDocs(tanksQuery);
+
+      const discoveredTanks = [];
+      
+      snapshot.forEach(docSnap => {
+        if (docSnap.exists()) {
+          const tankId = docSnap.id;
+          const firestoreData = docSnap.data();
+          
+          console.log(`Found tank: ${tankId}`, firestoreData);
+          
+          // Normalize and store tank data
+          const normalizedData = normalizeTankData(firestoreData, tankId);
+          tankCollection.value.set(tankId, normalizedData);
+          discoveredTanks.push(tankId);
+        }
+      });
+
+      console.log(`Discovered ${discoveredTanks.length} tanks:`, discoveredTanks);
+      
+      connectionStatus.value = 'connected';
+      error.value = null;
+      
+      return discoveredTanks;
+    } catch (err) {
+      console.error('Error discovering tanks:', err);
+      connectionStatus.value = 'error';
+      error.value = err.message;
+      return [];
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
+  const setupTankCollectionListener = () => {
+    try {
+      console.log('Setting up real-time tank collection listener...');
+      
+      const tanksQuery = query(collection(db, 'tanks'));
+      
+      const unsubscribeCollection = onSnapshot(tanksQuery, snapshot => {
+        console.log('Tank collection changed, processing updates...');
+        
+        snapshot.docChanges().forEach(change => {
+          const tankId = change.doc.id;
+          const firestoreData = change.doc.data();
+          
+          if (change.type === 'added' || change.type === 'modified') {
+            console.log(`Tank ${change.type}: ${tankId}`);
+            const normalizedData = normalizeTankData(firestoreData, tankId);
+            tankCollection.value.set(tankId, normalizedData);
+          }
+          
+          if (change.type === 'removed') {
+            console.log(`Tank removed: ${tankId}`);
+            tankCollection.value.delete(tankId);
+          }
+        });
+        
+        console.log(`Tank collection now has ${tankCollection.value.size} tanks`);
+      }, err => {
+        console.error('Tank collection listener error:', err);
+        connectionStatus.value = 'error';
+        error.value = err.message;
+      });
+      
+      // Store the unsubscribe function for cleanup
+      tankListeners.value.set('collection', unsubscribeCollection);
+      
+      return unsubscribeCollection;
+    } catch (err) {
+      console.error('Error setting up collection listener:', err);
+      connectionStatus.value = 'error';
+      error.value = err.message;
+    }
+  };
+
+  const getDefaultTankForDashboard = () => {
+    const tanks = Array.from(tankCollection.value.keys());
+    
+    // Priority order: central-tank, first alphabetical, any tank
+    if (tanks.includes('central-tank')) return 'central-tank';
+    if (tanks.length > 0) return tanks.sort()[0];
+    return null;
+  };
+
+  const navigateToFirstAvailableTank = (router) => {
+    const defaultTank = getDefaultTankForDashboard();
+    if (defaultTank) {
+      console.log(`Auto-navigating to tank: ${defaultTank}`);
+      router.push(`/tank/${defaultTank}`);
+      return defaultTank;
+    } else {
+      console.log('No tanks found - staying on home page');
+      return null;
+    }
+  };
+
+  const cleanupAllListeners = () => {
+    // Disconnect main tank listener
+    if (unsubscribe) {
+      unsubscribe();
+      unsubscribe = null;
+    }
+    
+    // Disconnect all tank listeners
+    tankListeners.value.forEach((unsubscribeFn, key) => {
+      if (typeof unsubscribeFn === 'function') {
+        unsubscribeFn();
+      }
+    });
+    tankListeners.value.clear();
+    
+    connectionStatus.value = 'disconnected';
+  };
+
   // Return the store interface
   return {
     // Legacy State (maintained for backward compatibility)
@@ -508,5 +613,12 @@ export const useTankStore = defineStore('tank', () => {
     selectTank,
     switchToOverview,
     initializeMultiTankData,
+    
+    // Tank Discovery Actions
+    discoverTanks,
+    setupTankCollectionListener,
+    getDefaultTankForDashboard,
+    navigateToFirstAvailableTank,
+    cleanupAllListeners,
   };
 });
