@@ -36,10 +36,10 @@ export const useTankStore = defineStore('tank', () => {
 
   // Sensor thresholds for alert generation
   const thresholds = ref({
-    temperature: { min: 20, max: 30, critical: 35 },
-    ph: { min: 6.0, max: 8.0, critical: 9.0 },
-    oxygen: { min: 5.0, max: 12.0, critical: 3.0 },
-    salinity: { min: 25, max: 35, critical: 40 },
+    temperature: { min: 18, max: 28, criticalMin: 15, criticalMax: 30 },
+    ph: { min: 6.5, max: 8.0, criticalMin: 6.0, criticalMax: 8.5 },
+    oxygen: { min: 6.5, max: 12.0, criticalMin: 5.0 },
+    salinity: { min: 28, max: 32, criticalMin: 25, criticalMax: 40 },
   });
 
   // Firestore listener reference
@@ -59,9 +59,45 @@ export const useTankStore = defineStore('tank', () => {
         return;
       }
 
-      if (value >= threshold.critical || value <= threshold.critical * 0.5) {
+      // Critical conditions based on project specifications
+      let isCritical = false;
+      let isWarning = false;
+
+      switch (sensorType) {
+        case 'temperature':
+          isCritical =
+            value < threshold.criticalMin || value > threshold.criticalMax;
+          isWarning =
+            !isCritical && (value < threshold.min || value > threshold.max);
+          break;
+        case 'ph':
+          isCritical =
+            value < threshold.criticalMin || value > threshold.criticalMax;
+          isWarning =
+            !isCritical && (value < threshold.min || value > threshold.max);
+          break;
+        case 'oxygen':
+          isCritical = value < threshold.criticalMin;
+          isWarning = !isCritical && value < threshold.min;
+          break;
+        case 'salinity':
+          isCritical =
+            value < threshold.criticalMin || value > threshold.criticalMax;
+          isWarning =
+            !isCritical && (value < threshold.min || value > threshold.max);
+          break;
+        default:
+          // Fallback to original logic for unknown sensors
+          isCritical =
+            value < threshold.criticalMin ||
+            value > (threshold.criticalMax || threshold.max * 1.5);
+          isWarning =
+            !isCritical && (value < threshold.min || value > threshold.max);
+      }
+
+      if (isCritical) {
         statuses[sensorType] = 'critical';
-      } else if (value > threshold.max || value < threshold.min) {
+      } else if (isWarning) {
         statuses[sensorType] = 'warning';
       } else {
         statuses[sensorType] = 'normal';
@@ -109,11 +145,16 @@ export const useTankStore = defineStore('tank', () => {
         docSnap => {
           if (docSnap.exists()) {
             const data = docSnap.data();
-            tankData.value = {
+            // Update tank data but compute status locally
+            const newTankData = {
               ...tankData.value,
-              ...data.tankData,
-              lastUpdate: data.tankData?.lastUpdate || new Date().toISOString(),
+              ...data,
+              lastUpdate: data?.lastUpdate || new Date().toISOString(),
             };
+
+            // Don't use the status from Firestore, let our computed property handle it
+            delete newTankData.status;
+            tankData.value = newTankData;
 
             // Update historical data if available
             if (data.historicalData && Array.isArray(data.historicalData)) {
@@ -175,12 +216,7 @@ export const useTankStore = defineStore('tank', () => {
             severity: status,
             sensor: sensorType,
             currentValue: value,
-            threshold:
-              status === 'critical'
-                ? threshold.critical
-                : value > threshold.max
-                  ? threshold.max
-                  : threshold.min,
+            threshold: getThresholdForAlert(sensorType, value, status),
             message: generateAlertMessage(sensorType, value, status),
             acknowledged: false,
             tankId: 'central-tank',
@@ -218,6 +254,23 @@ export const useTankStore = defineStore('tank', () => {
       return `${name} em nível crítico: ${value}${unit}`;
     } else {
       return `${name} fora do intervalo ideal: ${value}${unit}`;
+    }
+  };
+
+  const getThresholdForAlert = (sensorType, value, severity) => {
+    const threshold = thresholds.value[sensorType];
+    if (!threshold) return null;
+
+    if (severity === 'critical') {
+      if (sensorType === 'oxygen') {
+        return threshold.criticalMin;
+      } else {
+        return value < threshold.criticalMin
+          ? threshold.criticalMin
+          : threshold.criticalMax;
+      }
+    } else {
+      return value < threshold.min ? threshold.min : threshold.max;
     }
   };
 

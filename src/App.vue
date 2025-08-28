@@ -1,5 +1,8 @@
 <template>
-  <div id="app" class="min-h-screen bg-gradient-to-br from-slate-50 via-water-50 to-water-100">
+  <div
+    id="app"
+    class="min-h-screen bg-gradient-to-br from-slate-50 via-water-50 to-water-100"
+  >
     <!-- Navigation Header -->
     <nav class="glass-morphism border-b border-white/30 sticky top-0 z-50">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -7,8 +10,11 @@
           <!-- Logo and Brand -->
           <div class="flex items-center space-x-3">
             <div class="flex-shrink-0">
-              <div class="w-10 h-10 bg-primary-teal rounded-lg flex items-center justify-center">
-                <BeakerIcon class="w-6 h-6 text-white" />
+              <div
+                class="w-10 h-10 rounded-lg flex items-center justify-center"
+              >
+                <!-- <BeakerIcon class="w-6 h-6 text-white" /> -->
+                <img src="./assets/img/smartfishlogo.png" alt="" />
               </div>
             </div>
             <div>
@@ -23,7 +29,11 @@
               <router-link
                 to="/"
                 class="nav-link"
-                :class="$route.name === 'Home' ? 'nav-link-active' : 'nav-link-inactive'"
+                :class="
+                  $route.name === 'Home'
+                    ? 'nav-link-active'
+                    : 'nav-link-inactive'
+                "
               >
                 <HomeIcon class="w-4 h-4 inline mr-2" />
                 Home
@@ -31,7 +41,11 @@
               <router-link
                 to="/dashboard"
                 class="nav-link"
-                :class="$route.name === 'Dashboard' ? 'nav-link-active' : 'nav-link-inactive'"
+                :class="
+                  $route.name === 'Dashboard'
+                    ? 'nav-link-active'
+                    : 'nav-link-inactive'
+                "
               >
                 <ChartBarIcon class="w-4 h-4 inline mr-2" />
                 Dashboard
@@ -39,7 +53,11 @@
               <router-link
                 to="/settings"
                 class="nav-link"
-                :class="$route.name === 'Settings' ? 'nav-link-active' : 'nav-link-inactive'"
+                :class="
+                  $route.name === 'Settings'
+                    ? 'nav-link-active'
+                    : 'nav-link-inactive'
+                "
               >
                 <CogIcon class="w-4 h-4 inline mr-2" />
                 Settings
@@ -67,7 +85,9 @@
               to="/"
               @click="closeMobileMenu"
               class="block nav-link"
-              :class="$route.name === 'Home' ? 'nav-link-active' : 'nav-link-inactive'"
+              :class="
+                $route.name === 'Home' ? 'nav-link-active' : 'nav-link-inactive'
+              "
             >
               <HomeIcon class="w-4 h-4 inline mr-2" />
               Home
@@ -76,7 +96,11 @@
               to="/dashboard"
               @click="closeMobileMenu"
               class="block nav-link"
-              :class="$route.name === 'Dashboard' ? 'nav-link-active' : 'nav-link-inactive'"
+              :class="
+                $route.name === 'Dashboard'
+                  ? 'nav-link-active'
+                  : 'nav-link-inactive'
+              "
             >
               <ChartBarIcon class="w-4 h-4 inline mr-2" />
               Dashboard
@@ -85,7 +109,11 @@
               to="/settings"
               @click="closeMobileMenu"
               class="block nav-link"
-              :class="$route.name === 'Settings' ? 'nav-link-active' : 'nav-link-inactive'"
+              :class="
+                $route.name === 'Settings'
+                  ? 'nav-link-active'
+                  : 'nav-link-inactive'
+              "
             >
               <CogIcon class="w-4 h-4 inline mr-2" />
               Settings
@@ -117,26 +145,26 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref } from 'vue';
 import {
   HomeIcon,
   ChartBarIcon,
   CogIcon,
   Bars3Icon,
   XMarkIcon,
-  BeakerIcon
-} from '@heroicons/vue/24/outline'
+  BeakerIcon,
+} from '@heroicons/vue/24/outline';
 
 // Mobile menu state
-const mobileMenuOpen = ref(false)
+const mobileMenuOpen = ref(false);
 
 const toggleMobileMenu = () => {
-  mobileMenuOpen.value = !mobileMenuOpen.value
-}
+  mobileMenuOpen.value = !mobileMenuOpen.value;
+};
 
 const closeMobileMenu = () => {
-  mobileMenuOpen.value = false
-}
+  mobileMenuOpen.value = false;
+};
 </script>
 
 <style scoped>
