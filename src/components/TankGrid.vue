@@ -122,9 +122,11 @@
       </div>
     </div>
 
-    <!-- Tank Cards Grid -->
+    <!-- Tank Display (Grid or List) -->
+    <div v-else-if="filteredTanks.length > 0">
+      <!-- Tank Cards Grid (Grid Mode) -->
     <div 
-      v-else
+      v-if="viewMode === 'grid'"
       class="tank-grid"
       :class="gridClass"
     >
@@ -139,9 +141,38 @@
       />
     </div>
 
+    <!-- Tank List Table (List Mode) -->
+    <div 
+      v-else-if="viewMode === 'list'"
+      class="tank-list-container overflow-x-auto bg-white/50 backdrop-blur-sm rounded-lg border border-gray-200"
+    >
+      <table 
+        class="w-full min-w-full"
+        role="table" 
+        aria-label="Lista de tanques de monitoramento"
+      >
+        <TankListHeader
+          :sort-by="sortBy"
+          :sort-order="sortOrder"
+          @sort-changed="handleSortChanged"
+        />
+        <tbody role="rowgroup">
+          <TankListItem
+            v-for="tank in paginatedTanks"
+            :key="tank.id"
+            :tank="tank"
+            @settings-clicked="handleSettingsClicked"
+            @alerts-clicked="handleAlertsClicked"
+            @export-clicked="handleExportClicked"
+          />
+        </tbody>
+      </table>
+    </div>
+    </div>
+
     <!-- Pagination -->
     <div 
-      v-if="totalPages > 1"
+      v-if="totalPages > 1 && filteredTanks.length > 0"
       class="flex items-center justify-center space-x-2 mt-8"
     >
       <button
@@ -179,7 +210,7 @@
 
     <!-- Load More Button (Alternative to pagination) -->
     <div 
-      v-if="!usePagination && hasMoreTanks"
+      v-if="!usePagination && hasMoreTanks && filteredTanks.length > 0"
       class="text-center mt-8"
     >
       <button
@@ -207,6 +238,8 @@ import {
   ArrowPathIcon
 } from '@heroicons/vue/24/outline'
 import TankCard from './TankCard.vue'
+import TankListHeader from './TankListHeader.vue'
+import TankListItem from './TankListItem.vue'
 
 // Props
 const props = defineProps({
@@ -225,6 +258,11 @@ const props = defineProps({
   tanksPerPage: {
     type: Number,
     default: 12
+  },
+  viewMode: {
+    type: String,
+    default: 'grid',
+    validator: value => ['grid', 'list'].includes(value)
   }
 })
 
@@ -233,6 +271,7 @@ const emit = defineEmits([
   'add-tank',
   'settings-clicked',
   'alerts-clicked',
+  'export-clicked',
   'load-more'
 ])
 
@@ -240,6 +279,7 @@ const emit = defineEmits([
 const searchTerm = ref('')
 const statusFilter = ref('all')
 const sortBy = ref('name')
+const sortOrder = ref('asc')
 const currentPage = ref(1)
 const displayedTanksCount = ref(props.tanksPerPage)
 const isLoadingMore = ref(false)
@@ -265,19 +305,44 @@ const filteredTanks = computed(() => {
 
   // Apply sorting
   filtered.sort((a, b) => {
+    let result = 0
+    
     switch (sortBy.value) {
       case 'name':
-        return a.name.localeCompare(b.name)
+        result = a.name.localeCompare(b.name)
+        break
       case 'status':
         const statusOrder = { critical: 0, warning: 1, healthy: 2 }
-        return statusOrder[a.status] - statusOrder[b.status]
+        result = statusOrder[a.status] - statusOrder[b.status]
+        break
       case 'lastUpdate':
-        return new Date(b.lastUpdate) - new Date(a.lastUpdate)
+        result = new Date(b.lastUpdate) - new Date(a.lastUpdate)
+        break
       case 'alertCount':
-        return b.alertCount - a.alertCount
+        result = b.alertCount - a.alertCount
+        break
+      case 'temperature':
+        result = a.sensors.temperature - b.sensors.temperature
+        break
+      case 'ph':
+        result = a.sensors.ph - b.sensors.ph
+        break
+      case 'oxygen':
+        result = a.sensors.oxygen - b.sensors.oxygen
+        break
+      case 'salinity':
+        result = a.sensors.salinity - b.sensors.salinity
+        break
       default:
         return 0
     }
+    
+    // Apply sort order (only for list mode with explicit sort order)
+    if (props.viewMode === 'list' && sortOrder.value === 'desc') {
+      result = -result
+    }
+    
+    return result
   })
 
   return filtered
@@ -358,6 +423,16 @@ const handleAlertsClicked = (tankId) => {
   emit('alerts-clicked', tankId)
 }
 
+const handleExportClicked = (tankId) => {
+  emit('export-clicked', tankId)
+}
+
+const handleSortChanged = ({ sortBy: newSortBy, sortOrder: newSortOrder }) => {
+  sortBy.value = newSortBy
+  sortOrder.value = newSortOrder
+  currentPage.value = 1 // Reset to first page when sorting changes
+}
+
 const clearFilters = () => {
   searchTerm.value = ''
   statusFilter.value = 'all'
@@ -378,7 +453,7 @@ const loadMoreTanks = async () => {
 }
 
 // Watchers
-watch([searchTerm, statusFilter, sortBy], () => {
+watch([searchTerm, statusFilter, sortBy, sortOrder], () => {
   currentPage.value = 1
   if (!props.usePagination) {
     displayedTanksCount.value = props.tanksPerPage
@@ -393,6 +468,16 @@ watch([searchTerm, statusFilter, sortBy], () => {
 
 .tank-grid {
   animation: fadeInUp 0.6s ease-out;
+}
+
+.tank-list-container {
+  animation: fadeInUp 0.6s ease-out;
+  min-width: 800px; /* Ensure horizontal scroll on very small screens */
+}
+
+.tank-list-container table {
+  border-collapse: separate;
+  border-spacing: 0;
 }
 
 .tank-card-item {

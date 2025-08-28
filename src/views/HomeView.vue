@@ -126,11 +126,13 @@
         v-else-if="!isDiscovering && tankSummaries.length > 0"
         :tanks="tankSummaries"
         :loading="isLoading"
+        :view-mode="viewMode"
         :use-pagination="true"
         :tanks-per-page="12"
         @add-tank="handleAddTank"
         @settings-clicked="handleTankSettings"
         @alerts-clicked="handleTankAlerts"
+        @export-clicked="handleTankExport"
         @load-more="handleLoadMore"
       />
     </div>
@@ -434,6 +436,12 @@ const handleTankSettings = (tankId) => {
 
 const handleTankAlerts = (tankId) => {
   router.push(`/tank/${tankId}?tab=alerts`)
+}
+
+const handleTankExport = (tankId) => {
+  // For now, navigate to tank details with export parameter
+  // This could be enhanced to trigger direct export functionality
+  router.push(`/tank/${tankId}?action=export`)
 }
 
 const handleLoadMore = () => {
