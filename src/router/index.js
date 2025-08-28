@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import DashboardView from '../views/DashboardView.vue'
+import AboutView from '../views/AboutView.vue'
 import SettingsView from '../views/SettingsView.vue'
 
 const routes = [
@@ -9,17 +10,35 @@ const routes = [
     name: 'Home',
     component: HomeView,
     meta: {
-      title: 'Smartish - Home',
-      description: 'Welcome to Smartish Aquaculture Monitoring System'
+      title: 'Smartfish - Visão Geral dos Tanques',
+      description: 'Monitore todos os seus tanques de aquicultura em tempo real'
+    }
+  },
+  {
+    path: '/tank/:tankId',
+    name: 'TankDashboard',
+    component: DashboardView,
+    props: true,
+    meta: {
+      title: 'Dashboard do Tanque - Smartfish',
+      description: 'Monitoramento detalhado de tanque individual'
     }
   },
   {
     path: '/dashboard',
-    name: 'Dashboard',
-    component: DashboardView,
+    redirect: (to) => {
+      // Redirect old dashboard route to tank-specific route
+      // Default to central-tank for backward compatibility
+      return '/tank/central-tank'
+    }
+  },
+  {
+    path: '/about',
+    name: 'About',
+    component: AboutView,
     meta: {
-      title: 'Dashboard - Tank Monitoring',
-      description: 'Real-time monitoring of fish tank conditions and sensors'
+      title: 'Sobre o Smartfish - Monitoramento de Aquicultura',
+      description: 'Conheça os recursos e tecnologias do sistema Smartfish'
     }
   },
   {
@@ -27,8 +46,8 @@ const routes = [
     name: 'Settings',
     component: SettingsView,
     meta: {
-      title: 'Settings - Tank Configuration',
-      description: 'Configure thresholds and system settings'
+      title: 'Configurações - Smartfish',
+      description: 'Configure limites dos sensores e preferências do sistema'
     }
   },
   {
@@ -51,18 +70,30 @@ const router = createRouter({
   }
 })
 
-// Global navigation guard for setting page titles
+// Global navigation guard for setting page titles and handling tank routes
 router.beforeEach((to, from, next) => {
-  // Set document title
-  if (to.meta?.title) {
-    document.title = to.meta.title
-  }
-  
-  // Set meta description
-  if (to.meta?.description) {
+  // Handle tank-specific routes
+  if (to.name === 'TankDashboard' && to.params.tankId) {
+    // Dynamically set title based on tank ID
+    const tankId = to.params.tankId
+    const formattedTankName = tankId.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+    document.title = `${formattedTankName} - Dashboard - Smartfish`
+    
+    // Set meta description
     const metaDescription = document.querySelector('meta[name="description"]')
     if (metaDescription) {
-      metaDescription.setAttribute('content', to.meta.description)
+      metaDescription.setAttribute('content', `Monitoramento em tempo real do ${formattedTankName}`)
+    }
+  } else if (to.meta?.title) {
+    // Set document title for other routes
+    document.title = to.meta.title
+    
+    // Set meta description
+    if (to.meta?.description) {
+      const metaDescription = document.querySelector('meta[name="description"]')
+      if (metaDescription) {
+        metaDescription.setAttribute('content', to.meta.description)
+      }
     }
   }
   

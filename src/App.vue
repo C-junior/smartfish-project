@@ -36,19 +36,19 @@
                 "
               >
                 <HomeIcon class="w-4 h-4 inline mr-2" />
-                Home
+                Tanques
               </router-link>
               <router-link
-                to="/dashboard"
+                to="/about"
                 class="nav-link"
                 :class="
-                  $route.name === 'Dashboard'
+                  $route.name === 'About'
                     ? 'nav-link-active'
                     : 'nav-link-inactive'
                 "
               >
-                <ChartBarIcon class="w-4 h-4 inline mr-2" />
-                Dashboard
+                <InformationCircleIcon class="w-4 h-4 inline mr-2" />
+                Sobre
               </router-link>
               <router-link
                 to="/settings"
@@ -60,7 +60,7 @@
                 "
               >
                 <CogIcon class="w-4 h-4 inline mr-2" />
-                Settings
+                Configurações
               </router-link>
             </div>
           </div>
@@ -90,20 +90,20 @@
               "
             >
               <HomeIcon class="w-4 h-4 inline mr-2" />
-              Home
+              Tanques
             </router-link>
             <router-link
-              to="/dashboard"
+              to="/about"
               @click="closeMobileMenu"
               class="block nav-link"
               :class="
-                $route.name === 'Dashboard'
+                $route.name === 'About'
                   ? 'nav-link-active'
                   : 'nav-link-inactive'
               "
             >
-              <ChartBarIcon class="w-4 h-4 inline mr-2" />
-              Dashboard
+              <InformationCircleIcon class="w-4 h-4 inline mr-2" />
+              Sobre
             </router-link>
             <router-link
               to="/settings"
@@ -116,7 +116,7 @@
               "
             >
               <CogIcon class="w-4 h-4 inline mr-2" />
-              Settings
+              Configurações
             </router-link>
           </div>
         </div>
@@ -153,6 +153,7 @@ import {
   Bars3Icon,
   XMarkIcon,
   BeakerIcon,
+  InformationCircleIcon,
 } from '@heroicons/vue/24/outline';
 
 // Mobile menu state
